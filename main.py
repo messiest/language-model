@@ -119,7 +119,7 @@ def train():
     total_loss = 0
     ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(args.batch_size)
-    pbar = trange(0, train_data.size(0) - 1, args.bptt, desc='Epoch 1 | lr ---- | loss ---- | ppl ----', unit='batch')
+    pbar = trange(0, train_data.size(0) - 1, args.bptt, desc='Epoch --/{} | lr ---- | loss ---- | ppl ----'.format(args.epochs), unit='batch')
     for batch, i in enumerate(pbar):
         data, targets = get_batch(train_data, i)
         # Starting each batch, we detach the hidden state from how it was previously produced.
@@ -139,7 +139,7 @@ def train():
 
         if batch % args.log_interval == 0 and batch > 0:
             cur_loss = total_loss[0] / args.log_interval
-            pbar.set_description('Epoch {:3d} | lr {:02.2f} | loss {:5.2f} | ppl {:8.2f}'.format(epoch, lr, cur_loss, math.exp(cur_loss)))
+            pbar.set_description('Epoch {:3d}/{:3d} | lr {:02.2f} | loss {:5.2f} | ppl {:8.2f}'.format(epoch, args.epochs, lr, cur_loss, math.exp(cur_loss)))
             total_loss = 0
 
 # Loop over epochs.
@@ -149,6 +149,7 @@ best_val_loss = None
 # At any point you can hit Ctrl + C to break out of training early.
 try:
     # for epoch in pbar:
+    # pbar = trange(1, args.epochs)
     for epoch in range(1, args.epochs):
         epoch_start_time = time.time()
         train()
@@ -157,7 +158,7 @@ try:
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
             with open(args.save, 'wb') as f:
-                model.flatten_parameters()
+                # model.flatten_parameters()  Need to move to using RNNbase LSTM
                 torch.save(model, f)
             best_val_loss = val_loss
         else:
