@@ -1,9 +1,10 @@
 import os
+
 import torch
+from tqdm import tqdm
 
 class Dictionary(object):
     def __init__(self):
-        print("Building Dictionary")
         self.word2idx = {}
         self.idx2word = []
 
@@ -19,7 +20,6 @@ class Dictionary(object):
 
 class Corpus(object):
     def __init__(self, path):
-        print("Building Corpus")
         self.dictionary = Dictionary()
         self.train = self.tokenize(os.path.join(path, 'train.txt'))
         self.valid = self.tokenize(os.path.join(path, 'valid.txt'))
@@ -29,9 +29,12 @@ class Corpus(object):
         """Tokenizes a text file."""
         assert os.path.exists(path)
         # Add words to the dictionary
+        total_lines = 0
         with open(path, 'r') as f:
             tokens = 0
-            for line in f:
+            pbar1 = tqdm(f, desc='Reading: {}'.format(path), unit='lines')
+            for line in pbar1:
+                total_lines += 1
                 words = line.split() + ['<eos>']
                 tokens += len(words)
                 for word in words:
@@ -41,7 +44,10 @@ class Corpus(object):
         with open(path, 'r') as f:
             ids = torch.LongTensor(tokens)
             token = 0
-            for line in f:
+            pbar2 = tqdm(
+                f, desc='Tokenizing: '.format(path), unit='lines', total=total_lines,
+            )
+            for line in pbar2:
                 words = line.split() + ['<eos>']
                 for word in words:
                     ids[token] = self.dictionary.word2idx[word]
