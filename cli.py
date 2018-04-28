@@ -5,7 +5,7 @@ import torch
 
 
 parser = argparse.ArgumentParser(
-    description='PyTorch Wikitext-2 RNN/LSTM Language Model'
+    description='WikiText Language Model'
 )
 parser.add_argument(
     '--data',
@@ -94,7 +94,7 @@ parser.add_argument(
 parser.add_argument(
     '--log-interval',
     type=int,
-    default=200,
+    default=100,
     metavar='N',
     help='report interval'
 )
