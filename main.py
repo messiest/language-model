@@ -1,4 +1,4 @@
-# coding: utf-8
+    # coding: utf-8
 import time
 import math
 import random
@@ -157,6 +157,7 @@ try:
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
             with open(args.save, 'wb') as f:
+                model.flatten_parameters()
                 torch.save(model, f)
             best_val_loss = val_loss
         else:
