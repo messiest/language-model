@@ -132,7 +132,7 @@ def training():
 
         # `clip_grad_norm_` helps prevent the exploding gradient problem in RNNs / LSTMs.
         # torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
-        torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         for p in model.parameters():
             p.data.add_(-lr, p.grad.data)
 
@@ -149,8 +149,6 @@ best_val_loss = None
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:
-    # for epoch in pbar:
-    # pbar = trange(1, args.epochs)
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         training()
@@ -159,7 +157,6 @@ try:
         # Save the model if the validation loss is the best we've seen so far.
         if not best_val_loss or val_loss < best_val_loss:
             with open(args.save, 'wb') as f:
-                # model.flatten_parameters()  Need to move to using RNNbase LSTM
                 torch.save(model, f)
             best_val_loss = val_loss
         else:
