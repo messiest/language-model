@@ -24,6 +24,8 @@ if torch.cuda.is_available():
     else:
         torch.cuda.manual_seed(args.seed)
 
+device = torch.device("cuda" if args.cuda else "cpu")
+
 ###############################################################################
 # Load data
 ###############################################################################
@@ -49,9 +51,8 @@ def batchify(data, bsz):
     data = data.narrow(0, 0, nbatch * bsz)
     # Evenly divide the data across the bsz batches.
     data = data.view(bsz, -1).t().contiguous()
-    if args.cuda:
-        data = data.cuda()
-    return data
+
+    return data.to(device)
 
 eval_batch_size = 10
 train_data = batchify(corpus.train, args.batch_size)
@@ -63,9 +64,7 @@ test_data = batchify(corpus.test, eval_batch_size)
 ###############################################################################
 
 ntokens = len(corpus.dictionary)
-model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied)
-if args.cuda:
-    model.cuda()
+model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
 
 criterion = nn.CrossEntropyLoss()
 
@@ -74,9 +73,9 @@ criterion = nn.CrossEntropyLoss()
 ###############################################################################
 
 def repackage_hidden(h):
-    """Wraps hidden states in new Variables, to detach them from their history."""
-    if type(h) == Variable:
-        return Variable(h.data)
+    """Wraps hidden states in new Tensors, to detach them from their history."""
+    if isinstance(h, torch.Tensor):
+        return h.detach()
     else:
         return tuple(repackage_hidden(v) for v in h)
 
@@ -91,29 +90,30 @@ def repackage_hidden(h):
 # by the batchify function. The chunks are along dimension 0, corresponding
 # to the seq_len dimension in the LSTM.
 
-def get_batch(source, i, evaluation=False):
+def get_batch(source, i):
     seq_len = min(args.bptt, len(source) - 1 - i)
-    data = Variable(source[i:i+seq_len], volatile=evaluation)
-    target = Variable(source[i+1:i+1+seq_len].view(-1))
+    data = source[i:i+seq_len]
+    target = source[i+1:i+1+seq_len].view(-1)
     return data, target
 
 
 def evaluate(data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
-    total_loss = 0
+    total_loss = 0.
     ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(eval_batch_size)
-    for i in range(0, data_source.size(0) - 1, args.bptt):
-        data, targets = get_batch(data_source, i, evaluation=True)
-        output, hidden = model(data, hidden)
-        output_flat = output.view(-1, ntokens)
-        total_loss += len(data) * criterion(output_flat, targets).data
-        hidden = repackage_hidden(hidden)
-    return total_loss[0] / len(data_source)
+    with torch.no_grad():
+        for i in range(0, data_source.size(0) - 1, args.bptt):
+            data, targets = get_batch(data_source, i)
+            output, hidden = model(data, hidden)
+            output_flat = output.view(-1, ntokens)
+            total_loss += len(data) * criterion(output_flat, targets).item()
+            hidden = repackage_hidden(hidden)
+    return total_loss / len(data_source)
 
 
-def train():
+def training():
     # Turn on training mode which enables dropout.
     model.train()
     total_loss = 0
@@ -130,15 +130,16 @@ def train():
         loss = criterion(output.view(-1, ntokens), targets)
         loss.backward()
 
-        # `clip_grad_norm` helps prevent the exploding gradient problem in RNNs / LSTMs.
+        # `clip_grad_norm_` helps prevent the exploding gradient problem in RNNs / LSTMs.
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), args.clip)
         torch.nn.utils.clip_grad_norm(model.parameters(), args.clip)
         for p in model.parameters():
             p.data.add_(-lr, p.grad.data)
 
-        total_loss += loss.data
+        total_loss += loss.item()
 
         if batch % args.log_interval == 0 and batch > 0:
-            cur_loss = total_loss[0] / args.log_interval
+            cur_loss = total_loss / args.log_interval
             pbar.set_description('Epoch {:3d}/{:3d} | lr {:02.2f} | loss {:5.2f} | ppl {:8.2f}'.format(epoch, args.epochs, lr, cur_loss, math.exp(cur_loss)))
             total_loss = 0
 
@@ -150,9 +151,9 @@ best_val_loss = None
 try:
     # for epoch in pbar:
     # pbar = trange(1, args.epochs)
-    for epoch in range(1, args.epochs):
+    for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        train()
+        training()
         val_loss = evaluate(val_data)
         tqdm.write('End of epoch {:3d} | valid loss {:5.2f} | valid ppl {:8.2f}'.format(epoch, val_loss, math.exp(val_loss)))
         # Save the model if the validation loss is the best we've seen so far.
@@ -165,11 +166,14 @@ try:
             # Anneal the learning rate if no improvement has been seen in the validation dataset.
             lr /= 4.0
 except KeyboardInterrupt:
-    tqdm.write('Exiting from training early...')
+    tqdm.write('Stopping early.')
 
 # Load the best saved model.
 with open(args.save, 'rb') as f:
     model = torch.load(f)
+    # after load the rnn params are not a continuous chunk of memory
+    # this makes them a continuous chunk, and will speed up forward pass
+    model.rnn.flatten_parameters()
 
 # Run on test data.
 test_loss = evaluate(test_data)

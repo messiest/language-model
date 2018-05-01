@@ -1,5 +1,5 @@
 import torch.nn as nn
-from torch.autograd import Variable
+
 
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
@@ -39,7 +39,7 @@ class RNNModel(nn.Module):
     def init_weights(self):
         initrange = 0.1
         self.encoder.weight.data.uniform_(-initrange, initrange)
-        self.decoder.bias.data.fill_(0)
+        self.decoder.bias.data.zero_(0)
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
     def forward(self, input, hidden):
@@ -47,12 +47,13 @@ class RNNModel(nn.Module):
         output, hidden = self.rnn(emb, hidden)
         output = self.drop(output)
         decoded = self.decoder(output.view(output.size(0)*output.size(1), output.size(2)))
+
         return decoded.view(output.size(0), output.size(1), decoded.size(1)), hidden
 
     def init_hidden(self, bsz):
-        weight = next(self.parameters()).data
+        weight = next(self.parameters())
         if self.rnn_type == 'LSTM':
-            return (Variable(weight.new(self.nlayers, bsz, self.nhid).zero_()),
-                    Variable(weight.new(self.nlayers, bsz, self.nhid).zero_()))
+            return (weight.new_zeros(self.nlayers, bsz, self.nhid),
+                    weight.new_zeros(self.nlayers, bsz, self.nhid))
         else:
-            return Variable(weight.new(self.nlayers, bsz, self.nhid).zero_())
+            return weight.new_zeros(self.nlayers, bsz, self.nhid)
