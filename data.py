@@ -41,11 +41,14 @@ class Corpus(object):
                     self.dictionary.add_word(word)
 
         # Tokenize file content
-        with open(path, 'r') as f:
+        with open(path, 'r') as file:
             ids = torch.LongTensor(tokens)
             token = 0
             pbar2 = tqdm(
-                f, desc='Tokenizing: '.format(path), unit='lines', total=total_lines,
+                file,
+                desc='Tokenizing: '.format(path),
+                unit='lines',
+                total=total_lines,
             )
             for line in pbar2:
                 words = line.split() + ['<eos>']
